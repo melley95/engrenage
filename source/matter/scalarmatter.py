@@ -8,9 +8,11 @@ from bssn.tensoralgebra import *
 class ScalarMatter :
     """Represents the matter that sources the Einstein equation."""
 
-    def __init__(self, a_scalar_mu=1.0) :
+    def __init__(self, a_scalar_mu=1.0, a_g2=0.0, a_g3=0.0) :
         self.scalar_mu = a_scalar_mu # this is an inverse length scale related to the scalar compton wavelength
-        
+        self.kappa2 = a_g2  # Horndeski coupling for G2
+        self.kappa3 = a_g3 # Horndeski coupling for G3
+
         # Details for the matter state variables
         self.NUM_MATTER_VARS = 2
         self.VARIABLE_NAMES = ["u", "v"]
@@ -36,7 +38,7 @@ class ScalarMatter :
     def dVdu(self, u) :
         return self.scalar_mu * self.scalar_mu * u
     
-    def get_emtensor(self, r, bssn_vars, background) :
+    def get_emtensor(self, r, bssn_vars, bssn_d1, background) :
     
         assert self.matter_vars_set, 'Matter vars not set'
         
@@ -44,13 +46,46 @@ class ScalarMatter :
         scalar_emtensor = EMTensor(N)
         
         em4phi = np.exp(-4.0 * bssn_vars.phi)
+        ep4phi = np.exp(-4.0 * bssn_vars.phi)
         bar_gamma_UU = get_bar_gamma_UU(r, bssn_vars.h_LL, background)
-        # The potential V(u) = 1/2 mu^2 u^2
-        scalar_emtensor.rho = (  0.5 * self.v * self.v
-                               + 0.5 * em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u)
-                               + self.V_of_u(self.u) )
+        bar_gamma_LL = get_bar_gamma_LL(r, bssn_vars.h_LL, background)
+        bar_A_LL = get_bar_A_LL(r, bssn_vars, background)
+        bar_chris = get_bar_christoffel(r, Delta_ULL, background) 
+
+
+        # Horndeski auxillary variables
+        X = 0.5 * (self.v * self.v - 0.5 * em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u))
+        G2 = self.kappa2 * X
+        G2X = self.kappa3
+        G3 = self.kappa3 * X
+        G3X = self.kappa3
+
+        eta = 
+
+        tau = (bssn_vars.K * self.v + em4phi * (np.einsum('xij,xij->x', bar_gamma_UU, self.d2_u) - np.einsum('xij,xkij,xk->x', bar_gamma_UU, bar_chris, self.d1_u) 
+                                                + 2.0 * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, bssn_d1.phi)))
+
+        tau_L = (np.einsum('xjk,xij,xk->xi', bar_gamma_UU, bar_A_LL, self.d1_u)  
+               + (1.0/3.0) * bssn_vars.K[:,np.newaxis] * self.d1_u
+               + self.d1_v)
         
-        scalar_emtensor.Si = - self.v[:,np.newaxis] * self.d1_u
+        tau_LL = ((bar_A_LL + (1.0/3.0) * bssn_vars.K[:,np.newaxis,np.newaxis] * bar_gamma_LL) * ep4phi[:,np.newaxis,np.newaxis] * self.v[:,np.newaxis,np.newaxis] + self.d2_u 
+                  - np.einsum('xijk,xi->xjk', bar_chris, self.d1_u)
+                - 2.0 * (np.einsum('xi,xj->xij', self.d1_u, bssn_d1.phi) + np.einsum('xi,xj->xij', bssn_d1.phi, self.d1_u) 
+                         - bar_gamma_LL *  np.einsum('xkl,xk,xl->x', bar_gamma_UU, self.d1_u, bssn_d1.phi)[:,np.newaxis,np.newaxis]) )
+
+        
+
+        scalar_emtensor.rho = (-G2 + G2X * self.v * self.v + G3X * (tau * self.v * self.v 
+                                                                    - em4phi * em4phi * np.einsum('xik,xjl,xk,xl,xij->x',bar_gamma_UU, bar_gamma_UU, self.d1_u, self.d1_u, tau_LL)))
+        
+        scalar_emtensor.Si = (-G2X * self.v * self.d1_u + G3X * (em4phi[:,np.newaxis] * np.einsum('xjk,xi,xk,xj->xi',bar_gamma_UU, self.d1_u, self.d1_u, tau_L) 
+                                                                 + em4phi[:,np.newaxis] * self.v[:,np.newaxis] * np.einsum('xjk,xk,xij->xi', bar_gamma_UU, self.d1_u, tau_LL) 
+                                                                 - tau[:,np.newaxis] * self.v[:,np.newaxis]* self.d1_u - self.v[:,np.newaxis] * self.v[:,np.newaxis] * tau_L) )
+        
+        scalar_emtensor.Sij = (G2X[:,np.newaxis, np.newaxis] * np.einsum('xi,xj->xij',self.d1_u, self.d1_u) + G2[:,np.newaxis, np.newaxis] * ep4phi[:,np.newaxis, np.newaxis] * bar_gamma_LL 
+                               + G3X[:,np.newaxis, np.newaxis] * (tau[:,np.newaxis, np.newaxis] * self.d1_u * self.d2_u + 2.0 * self.v[:,np.newaxis, np.newaxis](np.einsum('xi,xj->xij',self.d1_u, tau_L) + np.einsum('xi,xj->xij',tau_L, self.d1_u )) 
+                                                                  - 2.0 * em4phi[:,np.newaxis, np.newaxis] * (np.einsum('xlk,xl,xi,xjk->xij',bar_gamma_UU, self.d1_u, self.d1_u, tau_LL) + np.einsum('xlk,xl,xj,xik->xij',bar_gamma_UU, self.d1_u, self.d1_u, tau_LL))))
         
         # Useful quantity Vt
         bar_gamma_LL = get_bar_gamma_LL(r, bssn_vars.h_LL, background)
