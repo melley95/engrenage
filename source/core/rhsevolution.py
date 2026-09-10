@@ -81,7 +81,7 @@ def get_rhs(t_i, current_state: np.ndarray, grid: Grid, background, matter, prog
     # Calculate matter quantities and rhs
     
     # Matter sources, must be defined in matter class
-    my_emtensor  = matter.get_emtensor(r, bssn_vars, background)
+    my_emtensor  = matter.get_emtensor(r, bssn_vars, d1, background)
     matter_rhs = matter.get_matter_rhs(r, bssn_vars, d1, background)    
 
     if (timing_on) :     
