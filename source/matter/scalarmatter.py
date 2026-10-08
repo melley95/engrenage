@@ -147,6 +147,7 @@ class ScalarMatter :
         dvdt   += np.einsum('xj,xj->x', background.inverse_scaling_vector * bssn_vars.shift_U,   self.advec_v)
         
         return dudt, dvdt
+
     
     # Set the matter vars and their derivs from the full state vector
     def set_matter_vars(self, state_vector, bssn_vars : BSSNVars, grid : Grid) :
@@ -171,5 +172,51 @@ class ScalarMatter :
         self.advec_u[:,i_x1], self.advec_v[:,i_x1] = advec_state[self.indices]
         
         self.matter_vars_set = True
+
+
+    def get_effective_metric(self, r, bssn_vars, d1, background) :
+
+        em4phi = np.exp(-4.0 * bssn_vars.phi)
+        ep4phi = np.exp(-4.0 * bssn_vars.phi)
+        bar_gamma_UU = get_bar_gamma_UU(r, bssn_vars.h_LL, background)
+        bar_gamma_LL = get_bar_gamma_LL(r, bssn_vars.h_LL, background)
+        bar_A_LL = get_bar_A_LL(r, bssn_vars, background)
+        Delta_U, Delta_ULL, Delta_LLL  = get_tensor_connections(r, bssn_vars.h_LL, d1.h_LL, background)
+        bar_chris = get_bar_christoffel(r, Delta_ULL, background) 
+
+        tau, tau_L, tau_LL, eta = self.get_hessian_identities(r, bssn_vars, d1, background)
+
+        shift_U_phys = background.inverse_scaling_vector * bssn_vars.shift_U
+
+
+
+        # Horndeski auxillary variables
+        X = 0.5 * (self.v * self.v - 0.5 * em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u))
+        G2 = self.g2 * X
+        G2X = self.g2
+        G3 = self.g3 * X
+        G3X = self.g3
+
+        Z0_0 = G2X + G3X * (2 * tau +  2 * np.einsum('xj,xj->x', shift_U_phys, tau_L)/bssn_vars.lapse 
+                            - G3X * (X*X - 2 * X * self.v * self.v - 2 * X * self.v * np.einsum('xj,xj->x', shift_U_phys, self.d1_u)/bssn_vars.lapse))
+        
+        Zi_j = G2X[:,np.newaxis, np.newaxis] * delta_ij + G3X[:,np.newaxis, np.newaxis] * (2 * delta_ij * (tau[:,np.newaxis, np.newaxis] - eta[:,np.newaxis, np.newaxis]) - 2 * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xkj->xij',bar_gamma_UU, tau_LL) 
+                                       - 2 * np.einsum('xi,xj->xij', shift_U_phys, tau_L)/bssn_vars.lapse[:,np.newaxis, np.newaxis]
+                                       - G3X[:,np.newaxis, np.newaxis] * (delta_ij * X[:,np.newaxis, np.newaxis] * X[:,np.newaxis, np.newaxis] + 2 * X[:,np.newaxis, np.newaxis] * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xk,xj->xij', bar_gamma_UU, self.d1_u, self.d1_u) 
+                                                + 2 * X[:,np.newaxis, np.newaxis] * self.v[:,np.newaxis, np.newaxis] * np.einsum('xi,xj->xij', shift_U_phys, self.d1_u)/bssn_vars.lapse[:,np.newaxis, np.newaxis]))
+        
+        Z0_i = 2 * G3X[:,np.newaxis] * (tau_L + X[:,np.newaxis] * self.v[:,np.newaxis] * G3X[:,np.newaxis] * self.d1_u)/bssn_vars.lapse[:,np.newaxis]
+
+        Zi_0 = -2 * G3X[:,np.newaxis] * (eta[:,np.newaxis] * shift_U_phys +  shift_U_phys * np.einsum('xk,xk->x', shift_U_phys, tau_L)[:,np.newaxis]/bssn_vars.lapse[:,np.newaxis] + bssn_vars.lapse[:,np.newaxis] * em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, tau_L) 
+                           + em4phi[:,np.newaxis] * np.einsum('xij,xk,xjk->xi', bar_gamma_UU, shift_U_phys, tau_LL))- 2 * X[:,np.newaxis] * G3X[:,np.newaxis] * G3X[:,np.newaxis] * (em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, self.d1_u) 
+                                                                                                                                                                                     + shift_U_phys * self.v[:,np.newaxis]/bssn_vars.lapse[:,np.newaxis]) * (bssn_vars.lapse[:,np.newaxis] * self.v[:,np.newaxis] 
+                                                                                                                                                                                                                                                             + np.einsum('xk,xk->x', shift_U_phys, self.d1_u)[:,np.newaxis])
+        
+        Z00 = (np.einsum('xi,xi->x', shift_U_phys, Z0_i) - Z0_0)/(bssn_vars.lapse * bssn_vars.lapse)
+
+        return Z0_0, Zi_j, Z0_i, Zi_0, Z00
+
+
+
 
 
