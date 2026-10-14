@@ -14,22 +14,31 @@ class ScalarMatter :
         self.g3 = a_g3 # Horndeski coupling for G3
 
         # Details for the matter state variables
-        self.NUM_MATTER_VARS = 2
-        self.VARIABLE_NAMES = ["u", "v"]
-        self.PARITY = np.array([1, 1])
-        self.ASYMP_POWER = np.array([0, 0])
-        self.ASYMP_OFFSET = np.array([0, 0])
+        self.NUM_MATTER_VARS = 4
+        self.VARIABLE_NAMES = ["u", "v", "u2", "v2"]
+        self.PARITY = np.array([1, 1, 1, 1])
+        self.ASYMP_POWER = np.array([0, 0, 0, 0])
+        self.ASYMP_OFFSET = np.array([0, 0, 0, 0])
         self.idx_u = NUM_BSSN_VARS
         self.idx_v = NUM_BSSN_VARS + 1
-        self.indices = np.array([self.idx_u, self.idx_v])
+        self.idx_u2 = NUM_BSSN_VARS + 2
+        self.idx_v2 = NUM_BSSN_VARS + 3
+        self.indices = np.array([self.idx_u, self.idx_v, self.idx_u2, self.idx_v2])
         self.matter_vars_set = False
         self.u = []
         self.v = []
+        self.u2 = []
+        self.v2 = []
         self.d1_u = []
         self.d1_v = []
         self.d2_u = []
+        self.d1_u2 = []
+        self.d1_v2 = []
+        self.d2_u2 = []
         self.advec_u = []
         self.advec_v = []
+        self.advec_u2 = []
+        self.advec_v2 = []
         
     # The scalar potential
     def V_of_u(self, u) :
@@ -43,7 +52,7 @@ class ScalarMatter :
     def get_hessian_identities(self, r, bssn_vars, d1, background) :
         
         em4phi = np.exp(-4.0 * bssn_vars.phi)
-        ep4phi = np.exp(-4.0 * bssn_vars.phi)
+        ep4phi = np.exp(4.0 * bssn_vars.phi)
         bar_gamma_UU = get_bar_gamma_UU(r, bssn_vars.h_LL, background)
         bar_gamma_LL = get_bar_gamma_LL(r, bssn_vars.h_LL, background)
         bar_A_LL = get_bar_A_LL(r, bssn_vars, background)
@@ -52,7 +61,7 @@ class ScalarMatter :
 
 
         # Horndeski auxillary variables
-        X = 0.5 * (self.v * self.v - 0.5 * em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u))
+        X = 0.5 * (self.v * self.v - em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u))
         G2 = self.g2 * X
         G2X = self.g2
         G3 = self.g3 * X
@@ -73,6 +82,7 @@ class ScalarMatter :
 
         numerator = (G2X * tau + G3X * (tau * tau + 2.0 * em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, tau_L, tau_L) 
                                         - em4phi * em4phi * np.einsum('xik,xjl,xkl,xij->x', bar_gamma_UU, bar_gamma_UU, tau_LL, tau_LL) 
+                                        - 0.5 * (em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u2) - self.v * self.v2)**2
                                         - G2 * X - G2X * X * X - G3X * (X * X * tau + 2.0 * X * (em4phi * em4phi * np.einsum('xik,xjl,xkl,xi,xj->x', bar_gamma_UU, bar_gamma_UU, tau_LL, self.d1_u, self.d1_u) 
                                         - 2.0 * self.v * em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, tau_L, self.d1_u)))))
 
@@ -92,7 +102,7 @@ class ScalarMatter :
         scalar_emtensor = EMTensor(N)
         
         em4phi = np.exp(-4.0 * bssn_vars.phi)
-        ep4phi = np.exp(-4.0 * bssn_vars.phi)
+        ep4phi = np.exp(4.0 * bssn_vars.phi)
         bar_gamma_UU = get_bar_gamma_UU(r, bssn_vars.h_LL, background)
         bar_gamma_LL = get_bar_gamma_LL(r, bssn_vars.h_LL, background)
 
@@ -107,14 +117,14 @@ class ScalarMatter :
 
         tau, tau_L, tau_LL, eta = self.get_hessian_identities(r, bssn_vars, d1, background)
 
-        scalar_emtensor.rho = (-G2 + G2X * self.v * self.v + G3X * (tau * self.v * self.v 
+        rho = (-G2 + G2X * self.v * self.v + G3X * (tau * self.v * self.v 
                                                                     - em4phi * em4phi * np.einsum('xik,xjl,xk,xl,xij->x',bar_gamma_UU, bar_gamma_UU, self.d1_u, self.d1_u, tau_LL)))
         
-        scalar_emtensor.Si = (-G2X * self.v[:,np.newaxis] * self.d1_u + G3X * (em4phi[:,np.newaxis] * np.einsum('xjk,xi,xk,xj->xi',bar_gamma_UU, self.d1_u, self.d1_u, tau_L) 
+        Si = (-G2X * self.v[:,np.newaxis] * self.d1_u + G3X * (em4phi[:,np.newaxis] * np.einsum('xjk,xi,xk,xj->xi',bar_gamma_UU, self.d1_u, self.d1_u, tau_L) 
                                                                  + em4phi[:,np.newaxis] * self.v[:,np.newaxis] * np.einsum('xjk,xk,xij->xi', bar_gamma_UU, self.d1_u, tau_LL) 
                                                                  - tau[:,np.newaxis] * self.v[:,np.newaxis]* self.d1_u - self.v[:,np.newaxis] * self.v[:,np.newaxis] * tau_L) )
         
-        scalar_emtensor.Sij = (G2X * np.einsum('xi,xj->xij',self.d1_u, self.d1_u) + G2[:,np.newaxis, np.newaxis] * ep4phi[:,np.newaxis, np.newaxis] * bar_gamma_LL 
+        Sij = (G2X * np.einsum('xi,xj->xij',self.d1_u, self.d1_u) + G2[:,np.newaxis, np.newaxis] * ep4phi[:,np.newaxis, np.newaxis] * bar_gamma_LL 
                                + G3X * (tau[:,np.newaxis, np.newaxis] * np.einsum('xi,xj->xij',self.d1_u, self.d1_u) + self.v[:,np.newaxis, np.newaxis] * (np.einsum('xi,xj->xij',self.d1_u, tau_L) 
                                                                                                                                                                  + np.einsum('xi,xj->xij',tau_L, self.d1_u )) 
                                                                   - em4phi[:,np.newaxis, np.newaxis] * (np.einsum('xlk,xl,xi,xjk->xij',bar_gamma_UU, self.d1_u, self.d1_u, tau_LL) 
@@ -123,13 +133,37 @@ class ScalarMatter :
                                                                   - em4phi[:,np.newaxis, np.newaxis] * np.einsum('xkl,xl,xmn,xm,xkn->x', bar_gamma_UU, self.d1_u, bar_gamma_UU, self.d1_u, tau_LL)[:,np.newaxis, np.newaxis]) 
                                                                   + eta[:,np.newaxis, np.newaxis] * (ep4phi[:,np.newaxis, np.newaxis] * self.v[:,np.newaxis, np.newaxis] * self.v[:,np.newaxis, np.newaxis] * bar_gamma_LL 
                                                                                                      - np.einsum('xi,xj->xij',self.d1_u, self.d1_u))))
+        
+        
+        
+        X2 = 0.5 * (self.v2 * self.v2 - em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u2, self.d1_u2))
+        
+        rho2 = self.v2 * self.v2 - X2
+        Si2 = -self.v2[:,np.newaxis] * self.d1_u2
+        Sij2 = np.einsum('xi,xj->xij',self.d1_u2, self.d1_u2) + X2[:,np.newaxis, np.newaxis] * ep4phi[:,np.newaxis, np.newaxis] * bar_gamma_LL 
               
             
+        scalar_emtensor.rho = rho + rho2
+        scalar_emtensor.Si = Si + Si2
+        scalar_emtensor.Sij = Sij + Sij2
+        
+        
+        
+        
+        
+        
         return scalar_emtensor
 
     def get_matter_rhs(self, r, bssn_vars, d1, background) :
 
-        assert self.matter_vars_set, 'Matter vars not set'        
+        assert self.matter_vars_set, 'Matter vars not set'
+
+        # The connections Delta^i, Delta^i_jk and Delta_ijk
+        Delta_U, Delta_ULL, Delta_LLL  = get_tensor_connections(r, bssn_vars.h_LL, d1.h_LL, background)
+
+        # \bar \Gamma^i_jk
+        bar_chris = get_bar_christoffel(r, Delta_ULL, background) 
+                
 
         _, _, _, eta = self.get_hessian_identities(r, bssn_vars, d1, background)
         
@@ -138,6 +172,14 @@ class ScalarMatter :
         
         dudt =  bssn_vars.lapse * self.v
         dvdt =  bssn_vars.lapse * eta + em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, d1.lapse)
+
+        du2dt =  bssn_vars.lapse * self.v2
+        dv2dt =  (bssn_vars.lapse * bssn_vars.K * self.v2 
+                 + 2.0 * bssn_vars.lapse * em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, d1.phi, self.d1_u2)
+                 +       bssn_vars.lapse * em4phi * np.einsum('xij,xij->x', bar_gamma_UU, self.d2_u2)
+                 +                         em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, d1.lapse, self.d1_u2)
+                 -       bssn_vars.lapse * em4phi * np.einsum('xij,xkij,xk->x', bar_gamma_UU, bar_chris, self.d1_u2))
+        
         
         # Add mass term
         dvdt += - bssn_vars.lapse * self.dVdu(self.u)
@@ -145,31 +187,42 @@ class ScalarMatter :
         # Now advection
         dudt   += np.einsum('xj,xj->x', background.inverse_scaling_vector * bssn_vars.shift_U,   self.advec_u)
         dvdt   += np.einsum('xj,xj->x', background.inverse_scaling_vector * bssn_vars.shift_U,   self.advec_v)
+
+        du2dt   += np.einsum('xj,xj->x', background.inverse_scaling_vector * bssn_vars.shift_U,   self.advec_u2)
+        dv2dt   += np.einsum('xj,xj->x', background.inverse_scaling_vector * bssn_vars.shift_U,   self.advec_v2)
         
-        return dudt, dvdt
+        return dudt, dvdt, du2dt, dv2dt
 
     
     # Set the matter vars and their derivs from the full state vector
     def set_matter_vars(self, state_vector, bssn_vars : BSSNVars, grid : Grid) :
          
-        (self.u, self.v) = state_vector[self.idx_u], state_vector[self.idx_v]
+        (self.u, self.v, self.u2, self.v2) = state_vector[self.idx_u], state_vector[self.idx_v], state_vector[self.idx_u2], state_vector[self.idx_v2]
         
         # get the derivatives of u needed for the evolution
         # need to get rid of the dependence on the background here somewhow...
         self.d1_u = np.zeros([grid.N, SPACEDIM])
+        self.d1_u2 = np.zeros([grid.N, SPACEDIM])
         self.d2_u = np.zeros([grid.N, SPACEDIM, SPACEDIM]) 
+        self.d2_u2 = np.zeros([grid.N, SPACEDIM, SPACEDIM]) 
         self.d1_v = np.zeros([grid.N, SPACEDIM])
-        d1_state = grid.get_first_derivative(state_vector, [self.idx_u] )
+        self.d1_v2 = np.zeros([grid.N, SPACEDIM])
+        d1_state = grid.get_first_derivative(state_vector, [self.idx_u, self.idx_v, self.idx_u2] )
         self.d1_u[:,i_x1] = d1_state[self.idx_u]
         self.d1_v[:,i_x1] = d1_state[self.idx_v]
-        d2_state = grid.get_second_derivative(state_vector, [self.idx_u])
+        self.d1_u2[:,i_x1] = d1_state[self.idx_u2]
+        d2_state = grid.get_second_derivative(state_vector, [self.idx_u, self.idx_u2])
         self.d2_u[:,i_x1,i_x1] = d2_state[self.idx_u]
+        self.d2_u2[:,i_x1,i_x1] = d2_state[self.idx_u2]
+        
         
         # Advective derivs
         advec_state = grid.get_advection(state_vector, bssn_vars.shift_U[:,i_x1] >= 0, self.indices)
         self.advec_u = np.zeros([grid.N, SPACEDIM])
         self.advec_v = np.zeros([grid.N, SPACEDIM])
-        self.advec_u[:,i_x1], self.advec_v[:,i_x1] = advec_state[self.indices]
+        self.advec_u2 = np.zeros([grid.N, SPACEDIM])
+        self.advec_v2 = np.zeros([grid.N, SPACEDIM])
+        self.advec_u[:,i_x1], self.advec_v[:,i_x1], self.advec_u2[:,i_x1], self.advec_v2[:,i_x1] = advec_state[self.indices]
         
         self.matter_vars_set = True
 
@@ -177,7 +230,6 @@ class ScalarMatter :
     def get_effective_metric(self, r, bssn_vars, d1, background) :
 
         em4phi = np.exp(-4.0 * bssn_vars.phi)
-        ep4phi = np.exp(-4.0 * bssn_vars.phi)
         bar_gamma_UU = get_bar_gamma_UU(r, bssn_vars.h_LL, background)
         bar_gamma_LL = get_bar_gamma_LL(r, bssn_vars.h_LL, background)
         bar_A_LL = get_bar_A_LL(r, bssn_vars, background)
@@ -191,7 +243,7 @@ class ScalarMatter :
 
 
         # Horndeski auxillary variables
-        X = 0.5 * (self.v * self.v - 0.5 * em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u))
+        X = 0.5 * (self.v * self.v - em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u))
         G2 = self.g2 * X
         G2X = self.g2
         G3 = self.g3 * X
@@ -200,15 +252,15 @@ class ScalarMatter :
         Z0_0 = G2X + G3X * (2 * tau +  2 * np.einsum('xj,xj->x', shift_U_phys, tau_L)/bssn_vars.lapse 
                             - G3X * (X*X - 2 * X * self.v * self.v - 2 * X * self.v * np.einsum('xj,xj->x', shift_U_phys, self.d1_u)/bssn_vars.lapse))
         
-        Zi_j = G2X[:,np.newaxis, np.newaxis] * delta_ij + G3X[:,np.newaxis, np.newaxis] * (2 * delta_ij * (tau[:,np.newaxis, np.newaxis] - eta[:,np.newaxis, np.newaxis]) - 2 * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xkj->xij',bar_gamma_UU, tau_LL) 
+        Zi_j = G2X * delta_ij + G3X * (2 * delta_ij * (tau[:,np.newaxis, np.newaxis] - eta[:,np.newaxis, np.newaxis]) - 2 * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xkj->xij',bar_gamma_UU, tau_LL) 
                                        - 2 * np.einsum('xi,xj->xij', shift_U_phys, tau_L)/bssn_vars.lapse[:,np.newaxis, np.newaxis]
-                                       - G3X[:,np.newaxis, np.newaxis] * (delta_ij * X[:,np.newaxis, np.newaxis] * X[:,np.newaxis, np.newaxis] + 2 * X[:,np.newaxis, np.newaxis] * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xk,xj->xij', bar_gamma_UU, self.d1_u, self.d1_u) 
+                                       - G3X * (delta_ij * X[:,np.newaxis, np.newaxis] * X[:,np.newaxis, np.newaxis] + 2 * X[:,np.newaxis, np.newaxis] * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xk,xj->xij', bar_gamma_UU, self.d1_u, self.d1_u) 
                                                 + 2 * X[:,np.newaxis, np.newaxis] * self.v[:,np.newaxis, np.newaxis] * np.einsum('xi,xj->xij', shift_U_phys, self.d1_u)/bssn_vars.lapse[:,np.newaxis, np.newaxis]))
         
-        Z0_i = 2 * G3X[:,np.newaxis] * (tau_L + X[:,np.newaxis] * self.v[:,np.newaxis] * G3X[:,np.newaxis] * self.d1_u)/bssn_vars.lapse[:,np.newaxis]
+        Z0_i = 2 * G3X * (tau_L + X[:,np.newaxis] * self.v[:,np.newaxis] * G3X* self.d1_u)/bssn_vars.lapse[:,np.newaxis]
 
-        Zi_0 = -2 * G3X[:,np.newaxis] * (eta[:,np.newaxis] * shift_U_phys +  shift_U_phys * np.einsum('xk,xk->x', shift_U_phys, tau_L)[:,np.newaxis]/bssn_vars.lapse[:,np.newaxis] + bssn_vars.lapse[:,np.newaxis] * em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, tau_L) 
-                           + em4phi[:,np.newaxis] * np.einsum('xij,xk,xjk->xi', bar_gamma_UU, shift_U_phys, tau_LL))- 2 * X[:,np.newaxis] * G3X[:,np.newaxis] * G3X[:,np.newaxis] * (em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, self.d1_u) 
+        Zi_0 = -2 * G3X* (eta[:,np.newaxis] * shift_U_phys +  shift_U_phys * np.einsum('xk,xk->x', shift_U_phys, tau_L)[:,np.newaxis]/bssn_vars.lapse[:,np.newaxis] + bssn_vars.lapse[:,np.newaxis] * em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, tau_L) 
+                           + em4phi[:,np.newaxis] * np.einsum('xij,xk,xjk->xi', bar_gamma_UU, shift_U_phys, tau_LL))- 2 * X[:,np.newaxis] * G3X * G3X * (em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, self.d1_u) 
                                                                                                                                                                                      + shift_U_phys * self.v[:,np.newaxis]/bssn_vars.lapse[:,np.newaxis]) * (bssn_vars.lapse[:,np.newaxis] * self.v[:,np.newaxis] 
                                                                                                                                                                                                                                                              + np.einsum('xk,xk->x', shift_U_phys, self.d1_u)[:,np.newaxis])
         

@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 def get_initial_state(grid: Grid, background, amp, r0, width) :
     
-    assert grid.NUM_VARS == 14, "NUM_VARS not correct for bssn + scalar field"
+    assert grid.NUM_VARS == 16, "NUM_VARS not correct for bssn + scalar field"
     
     interior = slice(NUM_GHOSTS, -NUM_GHOSTS)
 
@@ -52,7 +52,9 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
         br,
         lapse,
         u, 
-        v
+        v,
+        u2,
+        v2
     ) = initial_state
 
 
@@ -130,8 +132,12 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
     
     u.fill(0.0)
     v.fill(0.0)
+    u2.fill(0.0)
+    v2.fill(0.0)
     u[interior] = sf(r_interior)
     v[interior] = Pi(r_interior)
+    u2[interior] = sf(r_interior)
+    v2[interior] = Pi(r_interior)
     
  
     # overwrite outer boundaries with extrapolation
