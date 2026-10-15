@@ -69,7 +69,7 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
         return -2.0 * (r - r0) / width**2 * sf(r)
 
     def Pi(r):
-        return (1.0/r) * (sf(r) + r * dphi_dr(r))
+        return 0.0 # (1.0/r) * (sf(r) + r * dphi_dr(r))
 
     def rho(r, psi):
         return  0.5 * (psi**(-4) * dphi_dr(r)**2 + Pi(r)**2)
@@ -136,8 +136,8 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
     v2.fill(0.0)
     u[interior] = sf(r_interior)
     v[interior] = Pi(r_interior)
-    u2[interior] = sf(r_interior)
-    v2[interior] = Pi(r_interior)
+    #u2[interior] = sf(r_interior)
+    #v2[interior] = Pi(r_interior)
     
  
     # overwrite outer boundaries with extrapolation

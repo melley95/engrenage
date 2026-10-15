@@ -226,49 +226,88 @@ class ScalarMatter :
         
         self.matter_vars_set = True
 
+    
+    def get_effective_metric(self, states_over_time, t, grid: Grid, background) :
+    
+        # For readability
+        r = grid.r
+        N = grid.num_points
+        num_times = int(np.size(states_over_time) / (grid.NUM_VARS * N))
+        Znn  = np.zeros((num_times, N))
+        determinant = np.zeros((num_times, N))
 
-    def get_effective_metric(self, r, bssn_vars, d1, background) :
+        # unpack the vectors at each time
+        for i in range(num_times) :
+        
+            if(num_times == 1):
+                state = states_over_time
+                t_i = t
+            else :
+                state = states_over_time[i]
+                t_i = t[i]
 
-        em4phi = np.exp(-4.0 * bssn_vars.phi)
-        bar_gamma_UU = get_bar_gamma_UU(r, bssn_vars.h_LL, background)
-        bar_gamma_LL = get_bar_gamma_LL(r, bssn_vars.h_LL, background)
-        bar_A_LL = get_bar_A_LL(r, bssn_vars, background)
-        Delta_U, Delta_ULL, Delta_LLL  = get_tensor_connections(r, bssn_vars.h_LL, d1.h_LL, background)
-        bar_chris = get_bar_christoffel(r, Delta_ULL, background) 
+            state = state.reshape(grid.NUM_VARS, -1)
 
-        tau, tau_L, tau_LL, eta = self.get_hessian_identities(r, bssn_vars, d1, background)
+            # Assign the variables to parts of the solution
+            N = grid.N
+            bssn_vars = BSSNVars(N)
+            bssn_vars.set_bssn_vars(state)
+            self.set_matter_vars(state, bssn_vars, grid)
+    
+            # get the derivatives of the bssn vars in tensor form - see bssnvars.py
+            d1 = grid.get_d1_metric_quantities(state)
+       
+        
+            # Calculate some useful quantities
+            ########################################################
+        
+            em4phi = np.exp(-4.0 * bssn_vars.phi)
+            bar_gamma_UU = get_bar_gamma_UU(r, bssn_vars.h_LL, background)
 
-        shift_U_phys = background.inverse_scaling_vector * bssn_vars.shift_U
+            tau, tau_L, tau_LL, eta = self.get_hessian_identities(r, bssn_vars, d1, background)
+
+            shift_U_phys = background.inverse_scaling_vector * bssn_vars.shift_U
 
 
 
-        # Horndeski auxillary variables
-        X = 0.5 * (self.v * self.v - em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u))
-        G2 = self.g2 * X
-        G2X = self.g2
-        G3 = self.g3 * X
-        G3X = self.g3
+            # Horndeski auxillary variables
+            X = 0.5 * (self.v * self.v - em4phi * np.einsum('xij,xi,xj->x', bar_gamma_UU, self.d1_u, self.d1_u))
+            G2 = self.g2 * X
+            G2X = self.g2
+            G3 = self.g3 * X
+            G3X = self.g3
 
-        Z0_0 = G2X + G3X * (2 * tau +  2 * np.einsum('xj,xj->x', shift_U_phys, tau_L)/bssn_vars.lapse 
+
+            # End of: Calculate some useful quantities, now start diagnostic
+            #################################################################
+
+            Z0_0 = G2X + G3X * (2 * tau +  2 * np.einsum('xj,xj->x', shift_U_phys, tau_L)/bssn_vars.lapse 
                             - G3X * (X*X - 2 * X * self.v * self.v - 2 * X * self.v * np.einsum('xj,xj->x', shift_U_phys, self.d1_u)/bssn_vars.lapse))
         
-        Zi_j = G2X * delta_ij + G3X * (2 * delta_ij * (tau[:,np.newaxis, np.newaxis] - eta[:,np.newaxis, np.newaxis]) - 2 * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xkj->xij',bar_gamma_UU, tau_LL) 
+            Zi_j = G2X * delta_ij + G3X * (2 * delta_ij * (tau[:,np.newaxis, np.newaxis] - eta[:,np.newaxis, np.newaxis]) - 2 * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xkj->xij',bar_gamma_UU, tau_LL) 
                                        - 2 * np.einsum('xi,xj->xij', shift_U_phys, tau_L)/bssn_vars.lapse[:,np.newaxis, np.newaxis]
                                        - G3X * (delta_ij * X[:,np.newaxis, np.newaxis] * X[:,np.newaxis, np.newaxis] + 2 * X[:,np.newaxis, np.newaxis] * em4phi[:,np.newaxis, np.newaxis] * np.einsum('xik,xk,xj->xij', bar_gamma_UU, self.d1_u, self.d1_u) 
                                                 + 2 * X[:,np.newaxis, np.newaxis] * self.v[:,np.newaxis, np.newaxis] * np.einsum('xi,xj->xij', shift_U_phys, self.d1_u)/bssn_vars.lapse[:,np.newaxis, np.newaxis]))
         
-        Z0_i = 2 * G3X * (tau_L + X[:,np.newaxis] * self.v[:,np.newaxis] * G3X* self.d1_u)/bssn_vars.lapse[:,np.newaxis]
+            Z0_i = 2 * G3X * (tau_L + X[:,np.newaxis] * self.v[:,np.newaxis] * G3X* self.d1_u)/bssn_vars.lapse[:,np.newaxis]
 
-        Zi_0 = -2 * G3X* (eta[:,np.newaxis] * shift_U_phys +  shift_U_phys * np.einsum('xk,xk->x', shift_U_phys, tau_L)[:,np.newaxis]/bssn_vars.lapse[:,np.newaxis] + bssn_vars.lapse[:,np.newaxis] * em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, tau_L) 
+            Zi_0 = -2 * G3X* (eta[:,np.newaxis] * shift_U_phys +  shift_U_phys * np.einsum('xk,xk->x', shift_U_phys, tau_L)[:,np.newaxis]/bssn_vars.lapse[:,np.newaxis] + bssn_vars.lapse[:,np.newaxis] * em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, tau_L) 
                            + em4phi[:,np.newaxis] * np.einsum('xij,xk,xjk->xi', bar_gamma_UU, shift_U_phys, tau_LL))- 2 * X[:,np.newaxis] * G3X * G3X * (em4phi[:,np.newaxis] * np.einsum('xij,xj->xi', bar_gamma_UU, self.d1_u) 
                                                                                                                                                                                      + shift_U_phys * self.v[:,np.newaxis]/bssn_vars.lapse[:,np.newaxis]) * (bssn_vars.lapse[:,np.newaxis] * self.v[:,np.newaxis] 
                                                                                                                                                                                                                                                              + np.einsum('xk,xk->x', shift_U_phys, self.d1_u)[:,np.newaxis])
-        
-        Z00 = (np.einsum('xi,xi->x', shift_U_phys, Z0_i) - Z0_0)/(bssn_vars.lapse * bssn_vars.lapse)
+            Znn[i,:] = (np.einsum('xi,xi->x', shift_U_phys, Z0_i) - Z0_0
+)
+            #Z00[i,:] = (np.einsum('xi,xi->x', shift_U_phys, Z0_i) - Z0_0)/(bssn_vars.lapse * bssn_vars.lapse)
 
-        return Z0_0, Zi_j, Z0_i, Zi_0, Z00
+            determinant[i,:] = (Z0_0 * Zi_j[:,i_r,i_r] - Z0_i[:,i_r] * Zi_0[:,i_r]) * (Zi_j[:,i_t,i_t])* (Zi_j[:,i_t,i_t])
 
+            # Fix endpoints
+    
+            grid.fill_inner_boundary_single_variable(Znn[i,:])
+            grid.fill_inner_boundary_single_variable(determinant[i,:])
 
-
-
-
+    
+        # end of iteration over time  
+        #########################################################################
+    
+        return Znn, determinant
