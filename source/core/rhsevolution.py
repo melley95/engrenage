@@ -96,10 +96,10 @@ def get_rhs(t_i, current_state: np.ndarray, grid: Grid, background, matter, prog
     
     # Set the gauge evolution for the lapse and shift
     # eta is the 1+log slicing damping coefficient - of order 1/M_adm of spacetime
-    eta = 1.0
+    eta = 0.1
     bssn_rhs.b_U     += 0.75 * bssn_rhs.lambda_U - eta * bssn_vars.b_U
     bssn_rhs.shift_U += bssn_vars.b_U
-    bssn_rhs.lapse   += - 2.0 * bssn_vars.lapse * bssn_vars.K        
+    bssn_rhs.lapse   += - 2.0 * bssn_vars.lapse * (bssn_vars.K - bssn_vars.K[-1]) #  * np.exp(bssn_vars.K)    
         
     # Add advection to bssn time derivatives (this is the bit coming from the shift in the Lie derivative)
     # One sided stencils are used which helps stability

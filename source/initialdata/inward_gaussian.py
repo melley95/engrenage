@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 def get_initial_state(grid: Grid, background, amp, r0, width) :
     
-    assert grid.NUM_VARS == 16, "NUM_VARS not correct for bssn + scalar field"
+    assert grid.NUM_VARS == 14, "NUM_VARS not correct for bssn + scalar field"
     
     interior = slice(NUM_GHOSTS, -NUM_GHOSTS)
 
@@ -53,12 +53,10 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
         lapse,
         u, 
         v,
-        u2,
-        v2
     ) = initial_state
 
 
-
+  
   
    
 
@@ -67,12 +65,15 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
 
     def dphi_dr(r):
         return -2.0 * (r - r0) / width**2 * sf(r)
+    
+    def dphi_dr2(r):
+        return -2.0 * (r - r0) / width**2 * dphi_dr(r) - 2.0/ width**2 * sf(r)
 
     def Pi(r):
-        return 0.0 # (1.0/r) * (sf(r) + r * dphi_dr(r))
+        return (1.0/r) * (sf(r) + r * dphi_dr(r))
 
-    def rho(r, psi):
-        return  0.5 * (psi**(-4) * dphi_dr(r)**2 + Pi(r)**2)
+    def rho(r, psi, dpsi):
+        return  0.5 * (psi**(-4) * dphi_dr(r)**2 + Pi(r)**2)    # - g3 * psi**(-8) * dphi_dr(r)**2 * (dphi_dr2(r) - 2 * dpsi * dphi_dr(r)/ psi)
 
     def Sr(r):
         return -Pi(r) * dphi_dr(r)
@@ -85,7 +86,7 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
         dpsi = y[1]
         Arr = y[2]
         
-        ddpsi = -2.0 * np.pi * psi**(5) * rho(r, psi) - (2.0 / r) * dpsi - (3.0/16.0) * Arr**(2) * psi**(-7)
+        ddpsi = -2.0 * np.pi * psi**(5) * rho(r, psi, dpsi) - (2.0 / r) * dpsi - (3.0/16.0) * Arr**(2) * psi**(-7)
         dArr = 8.0 * np.pi * psi**(6) * Sr(r)  - 3 * Arr/r 
 
         return np.vstack((dpsi, ddpsi, dArr))
@@ -119,8 +120,10 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
     # Cap the phi value in the centre to stop unphysically large numbers at singularity
    # phi[:] = np.clip(phi, None, 10.0)
     lapse.fill(1.0)
-    
-    
+
+    sigma = 24 * np.pi
+
+
     
     arr.fill(0.0)
     att.fill(0.0)
@@ -129,15 +132,13 @@ def get_initial_state(grid: Grid, background, amp, r0, width) :
     att[interior] = -0.5 * Arr * np.exp(-6.0*phi[interior])
     app[interior] = -0.5 * Arr * np.exp(-6.0*phi[interior])
     
+ 
     
     u.fill(0.0)
     v.fill(0.0)
-    u2.fill(0.0)
-    v2.fill(0.0)
     u[interior] = sf(r_interior)
     v[interior] = Pi(r_interior)
-    #u2[interior] = sf(r_interior)
-    #v2[interior] = Pi(r_interior)
+
     
  
     # overwrite outer boundaries with extrapolation
